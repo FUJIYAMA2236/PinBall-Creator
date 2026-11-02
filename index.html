@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<!--
+  Pinball Maker / ピンボールメーカー
+  Copyright (c) 2026 FUJIYAMA2236 — Released under the MIT License (see LICENSE)
+-->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1220">
+<meta name="description" content="Build your own pinball game in the browser and export it as a single HTML file. / ブラウザで自分だけのピンボールを作って、1つのHTMLファイルとして書き出せるツール。">
+<meta name="author" content="FUJIYAMA2236">
+<title>ピンボールメーカー</title>
+<link rel="stylesheet" href="css/editor.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo"></span><span class="brand-name" data-i18n="app">ピンボールメーカー</span></div>
+  <div class="tb-group">
+    <button class="tb" id="btnNew" data-i18n-title="new.t">
+      <svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M12.5 11v7M9 14.5h7"/></svg><span data-i18n="new">新規</span></button>
+    <button class="tb" id="btnOpen" data-i18n-title="open.t">
+      <svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></svg><span data-i18n="open">開く</span></button>
+    <button class="tb" id="btnSave" data-i18n-title="save.t">
+      <svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span data-i18n="save">保存</span></button>
+  </div>
+  <div class="tb-group">
+    <button class="tb icon" id="btnUndo" data-i18n-title="undo.t">
+      <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+    <button class="tb icon" id="btnRedo" data-i18n-title="redo.t">
+      <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+  </div>
+  <input class="title-input" id="titleInput" maxlength="40" spellcheck="false" data-i18n-title="title.t">
+  <div class="spacer"></div>
+  <button class="tb lang" id="btnLang" data-i18n-title="lang.t">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span data-i18n="lang">English</span></button>
+  <button class="tb icon" id="btnHelp" data-i18n-title="help.t">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg></button>
+  <button class="tb play" id="btnPlay" data-i18n-title="play.t">
+    <svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" class="fill"/></svg><span data-i18n="play">テストプレイ</span></button>
+  <button class="tb export" id="btnExport" data-i18n-title="export.t">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg><span data-i18n="export">HTML書き出し</span></button>
+</header>
+
+<div class="main">
+  <aside class="palette">
+    <div class="panel-title" data-i18n="parts">パーツ</div>
+    <div class="parts" id="parts"></div>
+    <p class="palette-hint" data-i18n-html="parts.hint">ドラッグしてテーブルに置く<br>クリックで真ん中に追加</p>
+  </aside>
+
+  <section class="stage-wrap" id="stageWrap">
+    <canvas id="stage"></canvas>
+    <div class="stage-tools">
+      <button id="zoomOut" data-i18n-title="zoomOut.t">−</button>
+      <button id="zoomFit" data-i18n="fit" data-i18n-title="fit.t">全体</button>
+      <button id="zoomIn" data-i18n-title="zoomIn.t">＋</button>
+      <span class="divider"></span>
+      <label class="chk" data-i18n-title="snap.t"><input type="checkbox" id="optSnap" checked><span data-i18n="snap">吸着</span></label>
+      <label class="chk" data-i18n-title="grid.t"><input type="checkbox" id="optGrid" checked><span data-i18n="grid">方眼</span></label>
+    </div>
+  </section>
+
+  <aside class="inspector" id="inspector"></aside>
+</div>
+
+<footer class="statusbar">
+  <span class="status" id="status"></span>
+  <span class="credit">© 2026 FUJIYAMA2236 · MIT License</span>
+</footer>
+
+<!-- ひな形を選ぶ / Choose a template -->
+<div class="modal" id="tplModal">
+  <div class="dialog wide">
+    <div class="dlg-head"><h2 id="tplTitle"></h2><button class="x" data-close>×</button></div>
+    <p class="dlg-lead" id="tplLead"></p>
+    <div class="tpl-grid" id="tplGrid"></div>
+    <div class="dlg-foot">
+      <button class="btn" id="tplOpenFile" data-i18n="openFile">ファイルから開く…</button>
+    </div>
+  </div>
+</div>
+
+<!-- テストプレイ / Test play -->
+<div class="modal play-modal" id="playModal">
+  <div class="play-bar">
+    <strong data-i18n="playTitle">テストプレイ</strong>
+    <div class="seg" id="deviceSeg">
+      <button data-dev="phone" data-i18n="phone">スマホ表示</button>
+      <button data-dev="pc" data-i18n="pc">PC表示</button>
+    </div>
+    <button class="btn" id="playRestart" data-i18n="restart">最初から</button>
+    <div class="spacer"></div>
+    <span class="play-tip" data-i18n="playTip"></span>
+    <button class="btn primary" id="playClose" data-i18n="playClose">編集に戻る（Esc）</button>
+  </div>
+  <div class="play-area" id="playArea">
+    <div class="device" id="device"><iframe id="playFrame" title="Test play"></iframe></div>
+  </div>
+</div>
+
+<!-- 書き出し / Export -->
+<div class="modal" id="exportModal">
+  <div class="dialog">
+    <div class="dlg-head"><h2 data-i18n="exportTitle">HTMLとして書き出す</h2><button class="x" data-close>×</button></div>
+    <p class="dlg-lead" data-i18n="exportLead"></p>
+    <label class="field-label" data-i18n="fileName">ファイル名</label>
+    <div class="file-row"><input id="exportName" spellcheck="false"><span>.html</span></div>
+    <div class="dlg-actions">
+      <button class="btn primary big" id="exportGo" data-i18n="download">ダウンロード</button>
+    </div>
+    <div class="tips" data-lang="ja">
+      <h3>スマホで遊ぶには</h3>
+      <ul>
+        <li>書き出したファイルを Web に置く（GitHub Pages・Netlify Drop など）と、URLを送るだけで誰でも遊べます。</li>
+        <li>ファイルを直接スマホに送って、ブラウザで開いても遊べます。</li>
+        <li>書き出したHTMLは、このエディタの「開く」から読み込んで再編集できます。</li>
+        <li>作ったゲームは自由に公開・配布できます。HTMLの中のライセンス表記（エンジン部分のMITライセンス）は消さずに残してください。</li>
+      </ul>
+    </div>
+    <div class="tips" data-lang="en">
+      <h3>Playing on a phone</h3>
+      <ul>
+        <li>Put the exported file on the web (GitHub Pages, Netlify Drop, etc.) and anyone can play from the URL.</li>
+        <li>You can also send the file to a phone and open it in the browser.</li>
+        <li>Exported HTML can be opened again in this editor with "Open" for further editing.</li>
+        <li>You may publish and share your games freely. Please keep the license notice (MIT, for the engine) inside the HTML.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 使い方・ライセンス / How to use & License -->
+<div class="modal" id="helpModal">
+  <div class="dialog wide">
+    <div class="dlg-head"><h2 data-i18n="helpTitle">使い方・ライセンス</h2><button class="x" data-close>×</button></div>
+
+    <div class="help" data-lang="ja">
+      <section>
+        <h3>1. パーツを置く</h3>
+        <p>左の「パーツ」をテーブルへドラッグ＆ドロップ。クリックすると画面の真ん中に追加されます。</p>
+        <h3>2. 動かす・形を変える</h3>
+        <p>パーツをドラッグで移動。選ぶと出てくる白い●（ハンドル）をドラッグすると、長さ・向き・大きさが変わります。</p>
+        <h3>3. 細かく設定する</h3>
+        <p>右のパネルで色・得点・強さなどを変更。何も選んでいないときはテーブル全体（テーマ・背景画像・ボール数・台揺らし/TILT・ゲームの言語など）の設定です。画像ファイルをウィンドウへドロップすると背景画像になります。</p>
+        <h3>4. 遊んでみる → 書き出す</h3>
+        <p>「テストプレイ」ですぐに試せます。完成したら「HTML書き出し」。スマホでもそのまま遊べます。</p>
+      </section>
+      <section>
+        <h3>マウス・タッチ操作</h3>
+        <table class="keys">
+          <tr><td>何もない所をドラッグ</td><td>範囲選択</td></tr>
+          <tr><td>Shift + クリック</td><td>選択に追加 / 解除</td></tr>
+          <tr><td>同じ場所をもう一度クリック</td><td>重なった下のパーツを選ぶ</td></tr>
+          <tr><td>右クリック / 長押し</td><td>メニュー</td></tr>
+          <tr><td>ホイール / 2本指ピンチ</td><td>拡大・縮小</td></tr>
+          <tr><td>スペース + ドラッグ / 右ドラッグ</td><td>画面の移動</td></tr>
+        </table>
+        <h3>キーボード</h3>
+        <table class="keys">
+          <tr><td><kbd>Delete</kbd></td><td>削除</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>元に戻す / やり直し</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>複製</td></tr>
+          <tr><td><kbd>M</kbd></td><td>左右反転コピー</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd></td><td>コピー / 貼り付け</td></tr>
+          <tr><td>矢印キー（+Shift）</td><td>1（10）ずつ移動</td></tr>
+          <tr><td><kbd>Alt</kbd> + ドラッグ</td><td>吸着せずに動かす</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>テストプレイ</td></tr>
+        </table>
+        <p class="note">作品はブラウザに自動保存されます。別のPCへ持っていくときは「保存」でファイルにしてください。</p>
+      </section>
+    </div>
+
+    <div class="help" data-lang="en">
+      <section>
+        <h3>1. Place parts</h3>
+        <p>Drag a part from the left panel onto the table. Clicking a part adds it in the middle of the view.</p>
+        <h3>2. Move and reshape</h3>
+        <p>Drag a part to move it. Select it and drag the white ● handles to change its length, direction or size.</p>
+        <h3>3. Fine-tune</h3>
+        <p>Change color, points, strength and more in the right panel. With nothing selected it shows the table settings (theme, background image, balls, nudge/TILT, game language…). Drop an image file onto the window to use it as the background.</p>
+        <h3>4. Play, then export</h3>
+        <p>Try it right away with "Test play". When you're done, "Export HTML" — it plays on phones too.</p>
+      </section>
+      <section>
+        <h3>Mouse &amp; touch</h3>
+        <table class="keys">
+          <tr><td>Drag on empty space</td><td>Box select</td></tr>
+          <tr><td>Shift + click</td><td>Add to / remove from selection</td></tr>
+          <tr><td>Click the same spot again</td><td>Select the part underneath</td></tr>
+          <tr><td>Right-click / long-press</td><td>Menu</td></tr>
+          <tr><td>Wheel / pinch</td><td>Zoom</td></tr>
+          <tr><td>Space + drag / right-drag</td><td>Pan</td></tr>
+        </table>
+        <h3>Keyboard</h3>
+        <table class="keys">
+          <tr><td><kbd>Delete</kbd></td><td>Delete</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>Undo / Redo</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Duplicate</td></tr>
+          <tr><td><kbd>M</kbd></td><td>Mirror copy</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd></td><td>Copy / Paste</td></tr>
+          <tr><td>Arrow keys (+Shift)</td><td>Nudge by 1 (10)</td></tr>
+          <tr><td><kbd>Alt</kbd> + drag</td><td>Move without snapping</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Test play</td></tr>
+        </table>
+        <p class="note">Your work is autosaved in this browser. Use "Save" to keep a file you can take to another computer.</p>
+      </section>
+    </div>
+
+    <div class="about">
+      <h3 data-lang="ja">このツールについて</h3>
+      <h3 data-lang="en">About</h3>
+      <p><b>Pinball Maker / ピンボールメーカー</b><br>Copyright © 2026 FUJIYAMA2236</p>
+      <p data-lang="ja">MITライセンスで公開しています。ツールで作ったゲーム（書き出したHTML）は、作った人が自由に公開・配布・販売できます。その際、HTML内に自動で入るライセンス表記は残してください。背景に使う画像は、使う権利のあるものを選んでください。</p>
+      <p data-lang="en">Released under the MIT License. Games you make with this tool (the exported HTML) are yours to publish, share or sell. Please keep the license notice that is automatically included in the HTML. Only use background images you have the right to use.</p>
+      <p data-lang="ja">外部のライブラリ・フォント・画像・音声は使っていません（文字は端末に入っているフォント、効果音はブラウザ内で合成）。</p>
+      <p data-lang="en">No third-party libraries, fonts, images or sounds are included (text uses fonts already on your device; sound effects are synthesized in the browser).</p>
+      <details>
+        <summary>MIT License</summary>
+        <pre class="license">MIT License
+
+Copyright (c) 2026 FUJIYAMA2236
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</pre>
+      </details>
+    </div>
+  </div>
+</div>
+
+<div class="ctxmenu" id="ctxMenu"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept=".json,.html,.htm,application/json,text/html" hidden>
+<input type="file" id="imageInput" accept="image/*" hidden>
+
+<script src="js/engine.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/editor.js"></script>
+</body>
+</html>
