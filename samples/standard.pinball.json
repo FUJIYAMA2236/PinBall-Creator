@@ -26,6 +26,12 @@
     "shake": true,
     "tilt": true,
     "tiltWarnings": 2,
+    "keysLeft": "KeyZ ArrowLeft ShiftLeft",
+    "keysRight": "Slash ArrowRight ShiftRight",
+    "keysLaunch": "Space Enter ArrowDown",
+    "keysNudgeL": "KeyX",
+    "keysNudgeR": "Period",
+    "keysNudgeUp": "ArrowUp",
     "lang": "auto"
   },
   "objects": [

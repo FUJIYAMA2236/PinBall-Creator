@@ -39,7 +39,8 @@ Your work is autosaved in the browser. Use **Save** to keep a `.pinball.json` fi
 | Reshape / resize / rotate | Drag the white **●■◆** handles of the selected part |
 | Fine-tune | Right panel (color, points, strength…). With nothing selected: table settings |
 | Symmetry | `M` or "Mirror copy" — the pink dotted line is the mirror axis |
-| Box select | Drag on empty space; `Shift`+click to add/remove |
+| Move / reshape straight | Hold `Shift` while dragging (moving or handles; flipper and hole directions snap to 45°) |
+| Box select | Drag on empty space; `Shift` (or `Ctrl`)+click to add/remove |
 | Pick an overlapped part | Click the same spot again |
 | Menu | Right-click (long-press on touch) |
 | Zoom / pan | Wheel or pinch; `Space`+drag or right-drag |
@@ -67,7 +68,7 @@ Your work is autosaved in the browser. Use **Save** to keep a `.pinball.json` fi
 
 **Background image**: choose one in the table settings or drop an image file onto the window. By default it is shown only *inside the frame* (the area enclosed by walls, curves and flippers is detected automatically) and anything outside is trimmed. Use *Adjust by dragging on the table* to move/zoom it, and *Image opacity* to make parts stand out.
 
-**Nudge & TILT**: players can nudge the table (flick up, shake the phone, or `↑`). Nudge too often and you get WARNING → DANGER → **TILT**: flippers stop, no points, and the ball is lost.
+**Nudge & TILT**: players can nudge the table (flick up, shake the phone, or `X` / `.` / `↑`). Nudge too often and you get WARNING → DANGER → **TILT**: flippers stop, no points, and the ball is lost.
 
 ## Playing an exported game
 
@@ -76,10 +77,12 @@ Your work is autosaved in the browser. Use **Save** to keep a `.pinball.json` fi
 | Left flipper | Tap the left half | `Z` / `←` / left `Shift` |
 | Right flipper | Tap the right half | `/` / `→` / right `Shift` |
 | Launch | Hold, then release (longer = stronger) | Hold and release `Space` / `↓` |
-| Nudge | Flick up / shake the phone | `↑` / `W` (`Q`, `E` diagonal) |
+| Nudge | Flick up / shake the phone | `X` (up-left) / `.` (up-right) / `↑` (up) |
 | Pause | ❚❚ at the top right | `P` / `Esc` |
 
 On iPhone, allow "Motion & Orientation access" at the start to nudge by shaking (flicking works either way).
+
+The desktop keys above are the defaults. In the editor, *Keyboard controls (PC)* in the table settings lets you assign up to four keys per action (click "+ Key", then press the key). Pause is always `P` / `Esc`.
 
 ## Sharing your game
 

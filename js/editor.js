@@ -64,8 +64,8 @@
     openFile: P2('ファイルから開く…', 'Open a file…'),
     playTitle: P2('テストプレイ', 'Test play'), phone: P2('スマホ表示', 'Phone'), pc: P2('PC表示', 'Desktop'),
     restart: P2('最初から', 'Restart'),
-    playTip: P2('操作：左右をクリック / Z・/ キー　発射：長押し / Space　揺らす：↑ / 上へはらう',
-      'Flippers: click left/right or Z and /   Launch: hold, or Space   Nudge: ↑ or flick up'),
+    playTip: P2('操作：左右をクリック / Z・/ キー　発射：長押し / Space　揺らす：X・. / 上へはらう（キーはテーブル設定で変更可）',
+      'Flippers: click left/right or Z and /   Launch: hold, or Space   Nudge: X . or flick up (keys can be changed in table settings)'),
     playClose: P2('編集に戻る（Esc）', 'Back to editor (Esc)'),
     exportTitle: P2('HTMLとして書き出す', 'Export as HTML'),
     exportLead: P2('1つのHTMLファイルにゲームがまるごと入ります。ブラウザで開くだけで遊べます。', 'The whole game goes into one HTML file. Just open it in a browser to play.'),
@@ -390,8 +390,12 @@
       '<b>Flipper tip</b>: drag to change length and angle (the dotted outline is the raised position)'),
   };
 
-  function applyHandle(o, k, wx, wy, snap) {
-    const sx = snapV(wx, snap), sy = snapV(wy, snap);
+  // 縦か横、動かした量が大きい方だけを残す（Shift ドラッグ用）
+  function straight(dx, dy) { return Math.abs(dx) >= Math.abs(dy) ? { dx, dy: 0 } : { dx: 0, dy }; }
+
+  // fixed：'x' / 'y' はその座標を動かさない（吸着もしない）。shift：角度を45°おきにそろえる
+  function applyHandle(o, k, wx, wy, snap, fixed, shift) {
+    const sx = fixed === 'x' ? wx : snapV(wx, snap), sy = fixed === 'y' ? wy : snapV(wy, snap);
     switch (k) {
       case 'p1': o.x1 = sx; o.y1 = sy; break;
       case 'p2': o.x2 = sx; o.y2 = sy; break;
@@ -403,12 +407,12 @@
         break;
       }
       case 'dir': {
-        const step = snap ? 15 : 1;
+        const step = shift ? 45 : snap ? 15 : 1;
         o.angle = normAngle(Math.round(Math.atan2(wy - o.y, wx - o.x) / DEG / step) * step);
         break;
       }
       case 'tip': {
-        const a = Math.atan2(wy - o.y, wx - o.x) / DEG, step = snap ? 2 : 1;
+        const a = Math.atan2(wy - o.y, wx - o.x) / DEG, step = shift ? 45 : snap ? 2 : 1;
         const ang = normAngle(o.side === 'right' ? 180 - a : a);
         o.angle = clamp(Math.round(ang / step) * step, -80, 80);
         o.length = clamp(Math.round(Math.hypot(wx - o.x, wy - o.y)), 30, 180);
@@ -744,7 +748,8 @@
     }
     const hd = handleAt(p.x, p.y, touch ? 18 : 10);
     if (hd) {
-      drag = { mode: 'handle', id: hd.o.id, k: hd.k, moved: false };
+      const hp = handlesOf(hd.o).find((x) => x.k === hd.k);   // Shift で縦・横に固定するときの起点
+      drag = { mode: 'handle', id: hd.o.id, k: hd.k, moved: false, start: w, hx: hp.x, hy: hp.y };
       setStatus(tr(HANDLE_HINT[hd.k]));
       requestRender();
       return;
@@ -752,16 +757,18 @@
     const cands = candidatesAt(w.x, w.y, touch ? 12 : 6);
     if (cands.length) {
       const o = cands[0];
-      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      if (e.ctrlKey || e.metaKey) {                 // Ctrl + クリック：選択に追加 / 解除
         if (sel.has(o.id)) sel.delete(o.id); else sel.add(o.id);
         drag = null;
         refreshSelection();
         return;
       }
-      const wasOnly = sel.size === 1 && sel.has(o.id);
-      if (!sel.has(o.id)) sel = new Set([o.id]);
+      // Shift + クリックは選択に追加 / 解除、Shift + ドラッグは縦・横にまっすぐ移動
+      const wasSel = sel.has(o.id), wasOnly = sel.size === 1 && wasSel;
+      if (!wasSel) { if (e.shiftKey) sel.add(o.id); else sel = new Set([o.id]); }
       const orig = new Map(selected().map((x) => [x.id, clone(x)]));
-      drag = { mode: 'move', start: w, sp: p, anchor: anchorOf(o), orig, moved: false, wasOnly, cands, clickId: o.id };
+      drag = { mode: 'move', start: w, sp: p, anchor: anchorOf(o), orig, moved: false, wasOnly, cands, clickId: o.id,
+        shift: e.shiftKey, unselect: e.shiftKey && wasSel };
       if (touch) drag.lp = setTimeout(() => { if (drag && drag.mode === 'move' && !drag.moved) { drag = null; showObjectMenu(e.clientX, e.clientY); } }, 550);
       refreshSelection();
       return;
@@ -817,8 +824,16 @@
       case 'handle': {
         const o = findObj(drag.id);
         if (!o) return;
-        applyHandle(o, drag.k, w.x, w.y, opt.snap && !e.altKey);
+        let tx = w.x, ty = w.y, fixed = null;
+        if (e.shiftKey && drag.k !== 'r' && drag.k !== 'tip' && drag.k !== 'dir') {
+          // Shift：ハンドルを、押した位置から縦か横（動かした量が大きい方）にだけ動かす
+          const a = straight(w.x - drag.start.x, w.y - drag.start.y);
+          tx = drag.hx + a.dx; ty = drag.hy + a.dy;
+          fixed = a.dx === 0 ? 'x' : 'y';
+        }
+        applyHandle(o, drag.k, tx, ty, opt.snap && !e.altKey, fixed, e.shiftKey);
         drag.moved = true;
+        setStatus(e.shiftKey ? L('Shift：縦・横（向きは45°おき）にそろえて変形中', 'Shift: reshaping straight (angles in 45° steps)') : tr(HANDLE_HINT[drag.k]));
         refreshInspectorValues();
         requestRender();
         break;
@@ -828,14 +843,18 @@
         drag.moved = true;
         clearTimeout(drag.lp);
         const snap = opt.snap && !e.altKey;
-        const nx = snapV(drag.anchor[0] + w.x - drag.start.x, snap), ny = snapV(drag.anchor[1] + w.y - drag.start.y, snap);
+        let rx = w.x - drag.start.x, ry = w.y - drag.start.y;
+        if (e.shiftKey) { const a = straight(rx, ry); rx = a.dx; ry = a.dy; }   // Shift：縦か横にだけ動かす
+        const nx = rx === 0 ? drag.anchor[0] : snapV(drag.anchor[0] + rx, snap);
+        const ny = ry === 0 ? drag.anchor[1] : snapV(drag.anchor[1] + ry, snap);
         const dx = nx - drag.anchor[0], dy = ny - drag.anchor[1];
         for (const o of selected()) {
           const src = drag.orig.get(o.id);
           if (!src) continue;
           for (const [kx, ky] of COORD_KEYS) if (o[kx] !== undefined) { o[kx] = src[kx] + dx; o[ky] = src[ky] + dy; }
         }
-        setStatus(L('ドラッグで移動中', 'Moving') + (snap ? L('（Altキーを押しながらで吸着なし）', ' (hold Alt to move freely without snapping)') : ''));
+        setStatus(e.shiftKey ? L('Shift：縦・横にまっすぐ移動中', 'Shift: moving straight')
+          : L('ドラッグで移動中（Shift で縦・横だけ、Alt で吸着なし）', 'Moving (Shift: straight only, Alt: no snapping)'));
         refreshInspectorValues();
         requestRender();
         break;
@@ -877,7 +896,8 @@
       } else showStageMenu(d.cx, d.cy, d.w);
       return;
     }
-    if (d.mode === 'move' && !d.moved && d.wasOnly && d.cands.length > 1) {
+    if (d.mode === 'move' && !d.moved && d.unselect) sel.delete(d.clickId);   // 選択中のパーツを Shift + クリック → 選択から外す
+    else if (d.mode === 'move' && !d.moved && !d.shift && d.wasOnly && d.cands.length > 1) {
       // 同じ場所をもう一度クリック → 下に重なっているパーツへ
       const i = d.cands.findIndex((o) => o.id === d.clickId);
       sel = new Set([d.cands[(i + 1) % d.cands.length].id]);
@@ -931,8 +951,8 @@
     }
     if (sel.size) {
       const name = sel.size === 1 ? partName(selected()[0]) : sel.size + L('個のパーツ', ' parts');
-      return L('<b>' + name + '</b>を選択中 ・ ドラッグで移動 ・ Delete で削除 ・ Ctrl+D で複製 ・ M で左右反転コピー ・ 矢印キーで微調整',
-        '<b>' + name + '</b> selected · drag to move · Delete to remove · Ctrl+D to duplicate · M to mirror-copy · arrow keys to nudge');
+      return L('<b>' + name + '</b>を選択中 ・ ドラッグで移動（Shift で縦・横だけ）・ Delete で削除 ・ Ctrl+D で複製 ・ M で左右反転コピー ・ 矢印キーで微調整',
+        '<b>' + name + '</b> selected · drag to move (Shift: straight only) · Delete to remove · Ctrl+D to duplicate · M to mirror-copy · arrow keys to nudge');
     }
     return L('左の<b>パーツ</b>をテーブルへドラッグして置こう ・ 空いている所をドラッグで範囲選択 ・ ホイールで拡大縮小 ・ <b>テストプレイ</b>ですぐ遊べます',
       'Drag <b>parts</b> from the left onto the table · drag on empty space to box-select · wheel to zoom · try it with <b>Test play</b>');
@@ -1228,6 +1248,8 @@
         P2('短い間に何度も揺らすと警告。回数を超えるとTILT（フリッパーが止まり、そのボールを失う）',
           'Nudging repeatedly gives a warning. Go past the limit and it\'s TILT (flippers stop and the ball is lost)')), T)));
 
+    root.append(sec(L('キー設定（パソコンで遊ぶとき）', 'Keyboard controls (PC)'), keyConfigFields(T)));
+
     root.append(sec(L('ゲーム画面の言語', 'Game language'),
       field({ kind: 'seg', key: 'lang', label: '', options: [['auto', P2('自動（遊ぶ人の言語）', 'Auto (player\'s language)')], ['ja', '日本語'], ['en', 'English']],
         help: P2('書き出したゲームのボタンや説明の言語です', 'Language of the buttons and instructions in the exported game') }, T)));
@@ -1278,6 +1300,80 @@
       field({ kind: 'button', label: P2('位置と拡大をリセット', 'Reset position & zoom'), run: (t) => { t.bgZoom = 1; t.bgX = 0; t.bgY = 0; } }, T),
       field(range('bgAlpha', P2('画像の濃さ', 'Image opacity'), 0.1, 1, 0.05,
         P2('下げると背景色と混ざって暗くなり、パーツが見やすくなります', 'Lower it to blend with the background color so parts stand out')), T)];
+  }
+
+  // ---------------------------------------------------------- キー設定
+  const KEY_ROWS = [
+    ['keysLeft', P2('左フリッパー', 'Left flipper')],
+    ['keysRight', P2('右フリッパー', 'Right flipper')],
+    ['keysLaunch', P2('発射', 'Launch')],
+    ['keysNudgeL', P2('揺らす（左上へ）', 'Nudge (up-left)')],
+    ['keysNudgeR', P2('揺らす（右上へ）', 'Nudge (up-right)')],
+    ['keysNudgeUp', P2('揺らす（真上へ）', 'Nudge (up)')],
+  ];
+  const MAX_KEYS = 4;
+  let keyCapture = null;      // { field, btn }：次に押されたキーを登録する
+
+  const keyCodes = (T, f) => String(T[f] || '').split(/\s+/).filter(Boolean);
+
+  function keyConfigFields(T) {
+    const box = h('div', { class: 'keycfg' });
+    for (const [f, label] of KEY_ROWS) {
+      const chips = h('div', { class: 'keychips' });
+      for (const c of keyCodes(T, f)) {
+        chips.append(h('span', { class: 'keychip' }, h('kbd', { text: E.keyLabel(c, lang) }),
+          h('button', { type: 'button', class: 'keyx', text: '×', title: L('このキーを外す', 'Remove this key'),
+            onclick: () => { T[f] = keyCodes(T, f).filter((x) => x !== c).join(' '); commit(); buildInspector(); } })));
+      }
+      if (keyCodes(T, f).length < MAX_KEYS) {
+        chips.append(h('button', { type: 'button', class: 'keyadd', text: L('＋ キー', '+ Key'), title: L('押してから、割り当てたいキーを押す', 'Click, then press a key'),
+          onclick: (ev) => startKeyCapture(f, ev.currentTarget) }));
+      }
+      box.append(h('div', { class: 'keyrow' }, h('div', { class: 'keyname', text: tr(label) }), chips));
+    }
+    box.append(h('div', { class: 'keyfoot' },
+      h('button', { class: 'btn', type: 'button', text: L('初期設定に戻す', 'Reset to defaults'),
+        onclick: () => { for (const [f] of KEY_ROWS) T[f] = E.TABLE_DEFAULTS[f]; commit(); buildInspector(); toast(L('キー設定を初期設定に戻しました', 'Keyboard controls reset')); } }),
+      h('p', { class: 'note', text: L('「＋ キー」を押してから、割り当てたいキーを押します（Esc でやめる）。一時停止は P / Esc で固定です。',
+        'Click "+ Key", then press the key to assign (Esc cancels). Pause is always P / Esc.') })));
+    return box;
+  }
+
+  function startKeyCapture(field, btn) {
+    cancelKeyCapture();
+    keyCapture = { field, btn };
+    btn.textContent = L('キーを押してください…', 'Press a key…');
+    btn.classList.add('capturing');
+  }
+
+  function cancelKeyCapture() {
+    if (!keyCapture) return;
+    const btn = keyCapture.btn;
+    keyCapture = null;
+    btn.textContent = L('＋ キー', '+ Key');
+    btn.classList.remove('capturing');
+  }
+
+  // キー設定の待ち受け中に押されたキーを登録する。ほかの動作に同じキーがあれば付け替える
+  function captureKey(e) {
+    e.preventDefault();
+    const c = e.code;
+    if (!c || c === 'Escape') { cancelKeyCapture(); return; }
+    if (E.RESERVED_KEYS[c]) { toast(L('P は一時停止のキーなので使えません', 'P is reserved for pause'), 'error'); return; }
+    const T = project.table, f = keyCapture.field;
+    let from = null;
+    for (const [g, label] of KEY_ROWS) {
+      if (g !== f && keyCodes(T, g).indexOf(c) >= 0) { T[g] = keyCodes(T, g).filter((x) => x !== c).join(' '); from = label; }
+    }
+    const mine = keyCodes(T, f);
+    if (mine.indexOf(c) < 0) mine.push(c);
+    T[f] = mine.join(' ');
+    keyCapture = null;
+    commit();
+    buildInspector();
+    const name = E.keyLabel(c, lang);
+    toast(from ? L(name + ' を「' + tr(from) + '」から付け替えました', 'Moved ' + name + ' from "' + tr(from) + '"')
+      : L(name + ' を割り当てました', 'Assigned ' + name));
   }
 
   // 背景画像の調整モード（テーブル上のドラッグ・ホイールが画像の移動・拡大になる）
@@ -1505,7 +1601,10 @@
       { label: L('テストプレイ', 'Test play'), key: 'Ctrl+Enter', fn: openPlay },
     ]);
   }
-  document.addEventListener('pointerdown', (e) => { if (!menu.contains(e.target)) hideMenu(); });
+  document.addEventListener('pointerdown', (e) => {
+    if (!menu.contains(e.target)) hideMenu();
+    if (keyCapture && e.target !== keyCapture.btn) cancelKeyCapture();
+  });
 
   let toastTimer = 0;
   function toast(msg, kind) {
@@ -1722,6 +1821,7 @@
 
   function bindKeys() {
     document.addEventListener('keydown', (e) => {
+      if (keyCapture) { captureKey(e); return; }        // キー設定の待ち受け中は、押したキーを登録するだけ
       const ae = document.activeElement;
       const typing = ae && (ae.tagName === 'TEXTAREA' || (ae.tagName === 'INPUT' && !/^(range|checkbox|color|button)$/.test(ae.type)));
       const mod = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
