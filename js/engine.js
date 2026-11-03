@@ -50,9 +50,10 @@ function createPinballEngine() {
     width: 560, height: 1000, mirrorX: 280,
     bg1: '#0a0f2e', bg2: '#1d0b3d', pattern: 'stars',
     wallColor: '#4de8ff', ballColor: '#eef2ff',
-    balls: 3, gravity: 1, ballSave: 6, ballSize: 12,
+    balls: 3, gravity: 1, ballSave: 2, ballSize: 12,
     // 背景画像（data URL）。bgArea: 'frame' は外枠の内側だけ / 'table' はテーブル全体
-    bgImage: '', bgFit: 'cover', bgAlpha: 0.8, bgArea: 'frame', bgZoom: 1, bgX: 0, bgY: 0,
+    // bgBase は画像の後ろに敷く色（'' なら背景のグラデーションが透ける）
+    bgImage: '', bgFit: 'cover', bgAlpha: 0.8, bgArea: 'frame', bgZoom: 1, bgX: 0, bgY: 0, bgBase: '',
     nudge: true, shake: true, tilt: true, tiltWarnings: 2, // 台揺らし・TILT
     // パソコンのキー割り当て（KeyboardEvent.code をスペース区切りで並べる）
     keysLeft: 'KeyZ ArrowLeft ShiftLeft', keysRight: 'Slash ArrowRight ShiftRight', keysLaunch: 'Space Enter ArrowDown',
@@ -65,14 +66,15 @@ function createPinballEngine() {
     curve:      { x1: 0, y1: 0, cx: 60, cy: -60, x2: 120, y2: 0, thick: 5, color: '', bounce: 0.45 },
     bumper:     { x: 0, y: 0, r: 28, color: '#ff3d81', score: 100, power: 620 },
     slingshot:  { x1: 0, y1: 0, x2: 55, y2: 110, x3: 0, y3: 90, color: '#36e0ff', score: 10, power: 560 },
-    flipper:    { x: 0, y: 0, side: 'left', length: 88, angle: 28, sweep: 58, power: 1, color: '#ffffff' },
+    // side は形（どちら向きか）、button は動かすボタン（'auto' なら side と同じ）
+    flipper:    { x: 0, y: 0, side: 'left', button: 'auto', length: 88, angle: 28, sweep: 58, power: 1, color: '#ffffff' },
     post:       { x: 0, y: 0, r: 7, color: '#d6dcff', bounce: 0.6 },
     target:     { x1: 0, y1: 0, x2: 0, y2: 32, color: '#ffd23f', score: 200, group: 'A' },
     droptarget: { x1: 0, y1: 0, x2: 0, y2: 32, color: '#ff8a3d', score: 500, group: 'A' },
     rollover:   { x: 0, y: 0, r: 14, color: '#7dff6a', score: 100, group: 'A' },
     hole:       { x: 0, y: 0, r: 18, color: '#b07bff', score: 1000, angle: 90, power: 800, hold: 1 },
     gate:       { x1: 0, y1: 0, x2: 40, y2: 0, color: '#9aa4ff' },
-    plunger:    { x: 0, y: 0, power: 2300, color: '#c0c6d8' },
+    plunger:   { x: 0, y: 0, power: 2300, color: '#c0c6d8' },
     text:       { x: 0, y: 0, text: 'PINBALL', size: 40, color: '#ffffff', angle: 0, alpha: 0.3 },
     deco:       { x: 0, y: 0, r: 14, shape: 'star', color: '#ffd23f', angle: 0, blink: true },
   };
@@ -150,6 +152,9 @@ function createPinballEngine() {
     const dx = o.x2 - o.x1, dy = o.y2 - o.y1, l = Math.hypot(dx, dy) || 1;
     return [-dy / l, dx / l];
   }
+
+  // フリッパーを動かすボタン（形の向き side とは別に選べる）
+  function flipperButton(o) { return o.button === 'left' || o.button === 'right' ? o.button : o.side; }
 
   function segDist(px, py, ax, ay, bx, by) {
     const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
@@ -324,16 +329,18 @@ function createPinballEngine() {
     return { x: R.x + R.w / 2 + T.bgX - w / 2, y: R.y + R.h / 2 + T.bgY - h / 2, w, h, mask };
   }
 
-  // 画像を描いてからマスクで切り抜く（はみ出した部分は表示しない）
+  // 画像を描いてからマスクで切り抜く（はみ出した部分は表示しない）。
+  // 下地の色（bgBase）があれば、表示範囲をその色で塗ってから画像を重ねる
   let bgLayer = null;
   function drawBgImage(ctx, project, img) {
-    const T = project.table, p = bgPlacement(project, img), alpha = clamp(T.bgAlpha, 0, 1);
+    const T = project.table, p = bgPlacement(project, img), alpha = clamp(T.bgAlpha, 0, 1), base = T.bgBase;
     const m = p.mask && ctx.getTransform ? ctx.getTransform() : null;
     if (!m || m.b || m.c) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, T.width, T.height);
       ctx.clip();
+      if (base) { ctx.fillStyle = base; ctx.fillRect(0, 0, T.width, T.height); }
       ctx.globalAlpha = alpha;
       ctx.drawImage(img, p.x, p.y, p.w, p.h);
       ctx.restore();
@@ -351,13 +358,15 @@ function createPinballEngine() {
     lc.globalCompositeOperation = 'source-over';
     lc.clearRect(0, 0, bgLayer.width, bgLayer.height);
     lc.setTransform(m.a, 0, 0, m.d, m.e - vx0, m.f - vy0);
+    if (base) { lc.fillStyle = base; lc.fillRect(0, 0, T.width, T.height); lc.globalAlpha = alpha; }
     lc.drawImage(img, p.x, p.y, p.w, p.h);
+    lc.globalAlpha = 1;
     lc.globalCompositeOperation = 'destination-in';
     lc.drawImage(p.mask.canvas, 0, 0, T.width, T.height);
     lc.globalCompositeOperation = 'source-over';
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = base ? 1 : alpha;
     ctx.drawImage(bgLayer, vx0, vy0);
     ctx.restore();
   }
@@ -558,6 +567,18 @@ function createPinballEngine() {
         ctx.stroke();
         ctx.fillStyle = mix(c, '#000000', 0.5);
         circle(ctx, o.x, o.y, g.r1 * 0.35); ctx.fill();
+        // エディタでは、形と逆のボタンで動くフリッパーに L / R の印を付ける
+        const btn = flipperButton(o);
+        if (ed && btn !== o.side) {
+          const by = o.y - g.r1 - 10;
+          ctx.fillStyle = '#ffd23f';
+          circle(ctx, o.x, by, 8); ctx.fill();
+          ctx.fillStyle = '#241800';
+          ctx.font = '900 11px ' + FONT;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(btn === 'right' ? 'R' : 'L', o.x, by + 0.5);
+        }
         ctx.restore();
         break;
       }
@@ -821,7 +842,7 @@ function createPinballEngine() {
           case 'flipper': {
             const g = flipperGeom(o);
             this.flippers.push({ o, x: o.x, y: o.y, L: o.length, r1: g.r1, r2: g.r2, rest: g.rest, up: g.up,
-              ang: g.rest, omega: 0, vUp: 28 * o.power, vDown: 15 });
+              ang: g.rest, omega: 0, vUp: 28 * o.power, vDown: 15, right: flipperButton(o) === 'right' });
             s.ang = g.rest;
             break;
           }
@@ -1034,7 +1055,7 @@ function createPinballEngine() {
       if (Rt && !this.prevR) { this.laneChange(1); this.emit('flip', {}); }
       this.prevL = L; this.prevR = Rt;
       for (const f of this.flippers) {
-        const pressed = f.o.side === 'right' ? Rt : L;
+        const pressed = f.right ? Rt : L;
         const target = pressed ? f.up : f.rest;
         const diff = target - f.ang, sp = (pressed ? f.vUp : f.vDown) * dt, prev = f.ang;
         f.ang = Math.abs(diff) <= sp ? target : f.ang + Math.sign(diff) * sp;
@@ -1338,8 +1359,7 @@ function createPinballEngine() {
           case 'post': api.tone(760, 480, 0.04, 'sine', 0.12); break;
           case 'target': api.tone(988, 1480, 0.12, 'sine', 0.2); break;
           case 'drop': api.tone(660, 200, 0.15, 'square', 0.12); break;
-          case 'roll': api.tone(1400, 2000, 0.06, 'sine', 0.12); break;
-          case 'hole': api.arp([392, 523, 659], 0.07, 'square', 0.08); break;
+          case 'roll': api.tone(1400, 2000, 0.06, 'sine', 0.12); break;          case 'hole': api.arp([392, 523, 659], 0.07, 'square', 0.08); break;
           case 'kick': api.noise(0.12, 0.3, 700); break;
           case 'reset': api.arp([440, 660], 0.05, 'sine', 0.1); break;
           case 'bonus': api.arp([523, 659, 784, 1047], 0.08, 'square', 0.09); break;
@@ -2053,7 +2073,7 @@ function createPinballEngine() {
 
   return {
     VERSION, FONT, TABLE_DEFAULTS, OBJECT_DEFAULTS, LAYERS,
-    normalizeProject, newId, clamp, bezierPts, flipperGeom, slingNormal, gateNormal, segDist, centerOf,
+    normalizeProject, newId, clamp, bezierPts, flipperGeom, flipperButton, slingNormal, gateNormal, segDist, centerOf,
     drawScene, drawObject, drawBackground, drawBall, rgba, mix, getImage, bgPlacement, frameMask,
     KEY_ACTIONS, RESERVED_KEYS, keyLabel,
     Sim, Game, boot, buildStandaloneHTML, extractProjectFromHTML,

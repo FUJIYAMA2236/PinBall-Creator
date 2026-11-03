@@ -150,10 +150,14 @@
         range('power', P2('打ち出す強さ', 'Launch strength'), 200, 1800, 20),
         range('hold', P2('捕まえる時間（秒）', 'Hold time (sec)'), 0.2, 3, 0.1), score] },
     { type: 'flipper', cat: CAT.ctrl, name: P2('フリッパー', 'Flipper'),
-      desc: P2('プレイヤーが操作する打ち返し板。「左」は画面の左側、「右」は右側のタップで動きます。先端の●で長さと角度を変更。',
-        'The paddles the player controls. "Left" moves with a tap on the left half of the screen, "Right" with the right half. Drag the ● at the tip to change length and angle.'),
+      desc: P2('プレイヤーが操作する打ち返し板。左ボタン（画面の左側）か右ボタン（右側）で動きます。先端の●で長さと角度を変更。',
+        'The paddles the player controls. They move with the left button (left half of the screen) or the right button (right half). Drag the ● at the tip to change length and angle.'),
       make: (x, y, right) => ({ x, y, side: right ? 'right' : 'left' }),
-      props: [{ kind: 'seg', key: 'side', label: P2('操作するボタン', 'Controlled by'), options: [['left', P2('左', 'Left')], ['right', P2('右', 'Right')]] },
+      props: [{ kind: 'seg', key: 'side', label: P2('形（向き）', 'Shape'), help: P2('左用は支点が左、右用は支点が右', 'Left-hand pivots on the left, right-hand on the right'),
+        options: [['left', P2('左用', 'Left-hand')], ['right', P2('右用', 'Right-hand')]] },
+        { kind: 'seg', key: 'button', label: P2('操作するボタン', 'Controlled by'),
+          help: P2('「左」「右」を選ぶと、形とは逆のボタンで動くフリッパーも作れます', 'Choose Left or Right to make a flipper that moves with the opposite button from its shape'),
+          options: [['auto', P2('形と同じ', 'Same as shape')], ['left', P2('左', 'Left')], ['right', P2('右', 'Right')]] },
         range('length', P2('長さ', 'Length'), 30, 180, 1), range('angle', P2('角度', 'Angle'), -80, 80, 1),
         range('sweep', P2('振れ幅', 'Swing'), 20, 100, 1), range('power', P2('強さ', 'Strength'), 0.5, 1.6, 0.05), color()] },
     { type: 'plunger', cat: CAT.ctrl, name: P2('発射台', 'Plunger'),
@@ -252,7 +256,10 @@
 
   function mirrorObj(o, mx) {
     for (const [kx] of COORD_KEYS) if (o[kx] !== undefined) o[kx] = 2 * mx - o[kx];
-    if (o.type === 'flipper') o.side = o.side === 'left' ? 'right' : 'left';
+    if (o.type === 'flipper') {
+      o.side = o.side === 'left' ? 'right' : 'left';
+      if (o.button === 'left' || o.button === 'right') o.button = o.button === 'left' ? 'right' : 'left';
+    }
     if (o.type === 'hole') o.angle = normAngle(180 - o.angle);
     if (o.type === 'text' || o.type === 'deco') o.angle = -o.angle;
     if (o.type === 'gate') swapEnds(o);
@@ -1109,8 +1116,10 @@
         break;
       }
       case 'color': {
-        const row = h('div', { class: 'swatches' }), btns = [];
-        if (spec.auto) btns.push(h('button', { class: 'sw auto', type: 'button', text: L('自動', 'Auto'), title: L('テーマの壁の色を使う', 'Use the theme wall color'), 'data-c': '' }));
+        // spec.auto：true なら「自動」（テーマの壁の色）。{ text, title, from } で別の意味の「色なし」ボタンにできる
+        const row = h('div', { class: 'swatches' }), btns = [], au = spec.auto && spec.auto !== true ? spec.auto : null;
+        if (spec.auto) btns.push(h('button', { class: 'sw auto', type: 'button', 'data-c': '',
+          text: au ? tr(au.text) : L('自動', 'Auto'), title: au ? tr(au.title) : L('テーマの壁の色を使う', 'Use the theme wall color') }));
         for (const c of spec.swatches || SWATCHES) btns.push(h('button', { class: 'sw', type: 'button', title: c, style: '--c:' + c, 'data-c': c }));
         btns.forEach((b) => {
           b.addEventListener('click', () => { target[spec.key] = b.dataset.c; refresh(); live(); done(); });
@@ -1123,7 +1132,7 @@
         refresh = () => {
           const v = String(target[spec.key] || '').toLowerCase();
           btns.forEach((b) => b.classList.toggle('on', b.dataset.c.toLowerCase() === v));
-          pick.value = toHex6(v || project.table.wallColor);
+          pick.value = toHex6(v || project.table[au ? au.from : 'wallColor']);
         };
         el = h('div', { class: 'field' }, label, row);
         break;
@@ -1299,7 +1308,11 @@
       field(range('bgY', P2('縦の位置', 'Vertical position'), -Math.round(T.height), Math.round(T.height), 1), T),
       field({ kind: 'button', label: P2('位置と拡大をリセット', 'Reset position & zoom'), run: (t) => { t.bgZoom = 1; t.bgX = 0; t.bgY = 0; } }, T),
       field(range('bgAlpha', P2('画像の濃さ', 'Image opacity'), 0.1, 1, 0.05,
-        P2('下げると背景色と混ざって暗くなり、パーツが見やすくなります', 'Lower it to blend with the background color so parts stand out')), T)];
+        P2('下げると下地の色と混ざって、パーツが見やすくなります', 'Lower it to blend with the color behind the image so parts stand out')), T),
+      field({ kind: 'color', key: 'bgBase', label: P2('画像の下地の色', 'Color behind the image'), swatches: BG_SWATCHES,
+        help: P2('「画像の濃さ」を下げたときや、「画像全体」で余白ができたときに見える色。「なし」なら背景（上・下）のグラデーションが透けます',
+          'Shows through when the opacity is lowered or "Whole image" leaves margins. "None" lets the background gradient (top/bottom) show'),
+        auto: { text: P2('なし', 'None'), title: P2('背景のグラデーションをそのまま使う', 'Use the background gradient'), from: 'bg1' } }, T)];
   }
 
   // ---------------------------------------------------------- キー設定
@@ -1435,8 +1448,8 @@
   function checkProject() {
     const w = [], objs = project.objects, T = project.table;
     if (!objs.some((o) => o.type === 'plunger')) w.push(L('発射台がありません（ボールはテーブルの上から落ちてきます）', 'No plunger (the ball will drop from the top of the table)'));
-    if (!objs.some((o) => o.type === 'flipper' && o.side === 'left')) w.push(L('左のフリッパーがありません', 'No left flipper'));
-    if (!objs.some((o) => o.type === 'flipper' && o.side === 'right')) w.push(L('右のフリッパーがありません', 'No right flipper'));
+    if (!objs.some((o) => o.type === 'flipper' && E.flipperButton(o) === 'left')) w.push(L('左ボタンで動くフリッパーがありません', 'No flipper on the left button'));
+    if (!objs.some((o) => o.type === 'flipper' && E.flipperButton(o) === 'right')) w.push(L('右ボタンで動くフリッパーがありません', 'No flipper on the right button'));
     const out = objs.filter((o) => { const b = bounds(o); return b.x1 < 0 || b.y1 < 0 || b.x0 > T.width || b.y0 > T.height; }).length;
     if (out) w.push(L('テーブルの外に出ているパーツが' + out + '個あります', out + ' part(s) are outside the table'));
     return w;
@@ -1455,12 +1468,70 @@
   function multiPanel(list) {
     const counts = {};
     for (const o of list) counts[o.type] = (counts[o.type] || 0) + 1;
+    const one = Object.keys(counts).length === 1;
     const root = h('div');
-    root.append(head(null, L(list.length + '個のパーツを選択中', list.length + ' parts selected'),
-      L('まとめて移動・複製・左右反転コピー・削除ができます。', 'Move, duplicate, mirror-copy or delete them together.')));
-    root.append(sec(L('選択中のパーツ', 'Selected parts'), h('div', { class: 'counts' }, PARTS.filter((p) => counts[p.type]).map((p) => h('span', { text: tr(p.name) + ' ×' + counts[p.type] })))));
+    root.append(head(one ? list[0] : null, one ? partName(list[0]) + ' ×' + list.length : L(list.length + '個のパーツを選択中', list.length + ' parts selected'),
+      L('共通の設定はまとめて変更できます。移動・複製・左右反転コピー・削除もまとめてできます。',
+        'Settings they share can be changed for all of them at once. You can also move, duplicate, mirror-copy or delete them together.')));
+    if (!one) root.append(sec(L('選択中のパーツ', 'Selected parts'), h('div', { class: 'counts' }, PARTS.filter((p) => counts[p.type]).map((p) => h('span', { text: tr(p.name) + ' ×' + counts[p.type] })))));
+    const specs = commonSpecs(list);
+    if (specs.length) {
+      const target = multiTarget(list);
+      root.append(sec(L('まとめて設定', 'Settings for all'), ...specs.map((spec) => {
+        // 値がそろっていない項目には「バラバラ」の印。どれか変えるとすべて同じ値になるので印を消す
+        let tag = spec.kind !== 'button' && list.some((o) => o[spec.key] !== list[0][spec.key])
+          ? h('span', { class: 'mixed', text: L('バラバラ', 'mixed') }) : null;
+        const el = field(spec, target, () => { if (tag) { tag.remove(); tag = null; } });
+        const lb = el.querySelector('label');
+        if (tag && lb) lb.insertBefore(tag, lb.querySelector('.help'));
+        return el;
+      })));
+    } else {
+      root.append(sec(L('まとめて設定', 'Settings for all'), h('p', { class: 'note', text: L('選んだパーツに共通の設定はありません。', 'These parts have no settings in common.') })));
+    }
     root.append(sec(L('操作', 'Actions'), actionButtons(false)));
     return root;
+  }
+
+  // 選んだパーツすべてにある設定（同じ項目名・同じ種類）を集める。
+  // スライダーは全員が使える範囲に狭め、ボタン（ゲートの反転など）は同じ種類のパーツだけのときに出す
+  function commonSpecs(list) {
+    const types = [...new Set(list.map((o) => o.type))];
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const out = [];
+    for (const spec of PART[types[0]].props) {
+      if (spec.kind === 'text') continue;
+      if (spec.kind === 'button') {
+        if (types.length === 1) out.push(Object.assign({}, spec, { run: () => list.forEach((o) => spec.run(o)) }));
+        continue;
+      }
+      const all = types.map((t) => PART[t].props.find((p) => p.key === spec.key && p.kind === spec.kind && same(p.label, spec.label)));
+      if (all.some((p) => !p)) continue;
+      const m = Object.assign({}, spec);
+      if (!all.every((p) => same(p.help, spec.help))) delete m.help;
+      if (spec.kind === 'seg' && !all.every((p) => same(p.options.map((x) => x[0]), spec.options.map((x) => x[0])))) continue;
+      if (spec.kind === 'range') {
+        m.min = Math.max(...all.map((p) => p.min));
+        m.max = Math.min(...all.map((p) => p.max));
+        m.step = Math.min(...all.map((p) => p.step));
+        if (m.min >= m.max) continue;
+      }
+      if (spec.kind === 'color' && !all.every((p) => same(p.auto, spec.auto))) delete m.auto;
+      out.push(m);
+    }
+    return out;
+  }
+
+  // 複数のパーツをまとめて読み書きする入れ物。文字の値がそろっていないときは MIXED を返す（どの候補も選択表示しない）
+  const MIXED = '\u0000mixed';
+  function multiTarget(list) {
+    return new Proxy({}, {
+      get: (_, k) => {
+        const v = list[0][k];
+        return typeof v === 'string' && list.some((o) => o[k] !== v) ? MIXED : v;
+      },
+      set: (_, k, v) => { for (const o of list) o[k] = v; return true; },
+    });
   }
 
   function actionButtons(unique) {

@@ -41,6 +41,7 @@ Your work is autosaved in the browser. Use **Save** to keep a `.pinball.json` fi
 | Symmetry | `M` or "Mirror copy" — the pink dotted line is the mirror axis |
 | Move / reshape straight | Hold `Shift` while dragging (moving or handles; flipper and hole directions snap to 45°) |
 | Box select | Drag on empty space; `Shift` (or `Ctrl`)+click to add/remove |
+| Edit several at once | Select several parts to change the settings they share (color, points…) in the right panel ("mixed" marks values that differ) |
 | Pick an overlapped part | Click the same spot again |
 | Menu | Right-click (long-press on touch) |
 | Zoom / pan | Wheel or pinch; `Space`+drag or right-drag |
@@ -62,11 +63,13 @@ Your work is autosaved in the browser. Use **Save** to keep a `.pinball.json` fi
 | Drop target | Drops when hit; knock down a group for a bonus, then it resets |
 | Rollover | Lights up when rolled over; light a group to raise the **multiplier** (up to ×5) |
 | Kickout hole | Catches the ball and shoots it out along the arrow |
-| Flipper | Player-controlled paddle; choose Left or Right control (upper flippers are fine too) |
+| Flipper | Player-controlled paddle. **Shape (left-/right-hand)** and **button (Left/Right)** are set separately, so an upper flipper can move with the opposite button (marked L / R in the editor) |
 | Plunger | Where the ball comes out (one per table) |
 | Text / Decoration light | Visual only (no collision) |
 
-**Background image**: choose one in the table settings or drop an image file onto the window. By default it is shown only *inside the frame* (the area enclosed by walls, curves and flippers is detected automatically) and anything outside is trimmed. Use *Adjust by dragging on the table* to move/zoom it, and *Image opacity* to make parts stand out.
+**Background image**: choose one in the table settings or drop an image file onto the window. By default it is shown only *inside the frame* (the area enclosed by walls, curves and flippers is detected automatically) and anything outside is trimmed. Use *Adjust by dragging on the table* to move/zoom it, and *Image opacity* to make parts stand out. *Color behind the image* sets what shows through a faded image or the margins of "Whole image" ("None" keeps the background gradient).
+
+**Ball save**: a ball lost right after launch comes back once. The default is 2 seconds (change it under *Rules*).
 
 **Nudge & TILT**: players can nudge the table (flick up, shake the phone, or `X` / `.` / `↑`). Nudge too often and you get WARNING → DANGER → **TILT**: flippers stop, no points, and the ball is lost.
 

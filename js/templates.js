@@ -52,7 +52,7 @@
   const standard = {
     title: 'MY PINBALL',
     table: { width: 560, height: 1000, mirrorX: MX, bg1: '#0a0f2e', bg2: '#1d0b3d', pattern: 'stars',
-      wallColor: '#4de8ff', ballColor: '#eef2ff', balls: 3, gravity: 1, ballSave: 6, ballSize: 12 },
+      wallColor: '#4de8ff', ballColor: '#eef2ff', balls: 3, gravity: 1, ballSave: 2, ballSize: 12 },
     objects: shell(false).concat(
       pair([{ type: 'slingshot', x1: 70, y1: 690, x2: 128, y2: 800, x3: 70, y3: 780 }]),
       [
@@ -76,7 +76,7 @@
   const galaxy = {
     title: 'GALAXY DRIVE',
     table: { width: 560, height: 1000, mirrorX: MX, bg1: '#050a24', bg2: '#2a0a3d', pattern: 'stars',
-      wallColor: '#4de8ff', ballColor: '#f1f4ff', balls: 3, gravity: 1, ballSave: 8, ballSize: 12 },
+      wallColor: '#4de8ff', ballColor: '#f1f4ff', balls: 3, gravity: 1, ballSave: 2, ballSize: 12 },
     objects: shell(true).concat(
       pair([{ type: 'slingshot', x1: 84, y1: 690, x2: 136, y2: 798, x3: 84, y3: 780, color: '#36e0ff', score: 10 }]),
       [

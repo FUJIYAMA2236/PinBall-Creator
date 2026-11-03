@@ -153,6 +153,7 @@ svg .fill { fill: currentColor; stroke: none; }
 .field:last-child { margin-bottom: 0; }
 .field > label, .field-label { display: block; font-weight: 700; margin-bottom: 5px; font-size: 12px; }
 .field .help { display: block; font-weight: 400; font-size: 11px; color: var(--muted); line-height: 1.4; }
+.field .mixed { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: rgba(255,210,63,.16); color: #ffd23f; font-size: 10px; font-weight: 700; vertical-align: 1px; }
 .range-row { display: flex; align-items: center; gap: 8px; }
 .range-row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
 .num {
